@@ -1,0 +1,107 @@
+---
+title: "SVM Classifier"
+author: "Siddharth.S.Chandran (18BCE1003)"
+date: "26/03/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+1. Read the dataset and find the structure of it 
+```{r}
+library(readr)
+data<-read_csv("C:/Users/Siddharth.S.Chandran/Desktop/diabetes.csv")
+str(data)
+```
+
+Here we can see the outcome variable as categorical variable. We encode this features as a factor
+
+```{r}
+data$Outcome = factor(data$Outcome, levels = c(0,1))
+```
+
+We divide the dataset into training and testing
+```{r}
+library(caTools)
+set.seed(123)
+split = sample.split(data$Outcome, SplitRatio = 0.75)
+training_set = subset(data, split == TRUE)
+test_set = subset(data, split == FALSE)
+head(training_set)
+
+```
+
+The next step is to normalize the features of the training and testing data. This is done with the help of feature scaling. 
+```{r}
+cols<-c('Age', 'DiabetesPedigreeFunction','BMI', 'Insulin', 'SkinThickness','BloodPressure', 'Glucose', 'Pregnancies')
+training_set[cols] = scale(training_set[cols])
+test_set[cols] = scale(test_set[cols])
+```
+
+Now we improve the predictive accuracy of the algorithm. After scaling the features we proceed to fitting the SVM classifier data to the training set
+
+Linear kernel
+
+```{r}
+library(e1071)
+classifier = svm(formula = Outcome ~ .,
+                 data = training_set,
+                 type = 'C-classification',
+                 kernel = 'linear')
+summary(classifier)
+```
+
+The next line runs the classifier on the training set and test set so that the predictions can be made. 
+
+```{r}
+library(caret)
+cols<-c('Age', 'DiabetesPedigreeFunction','BMI', 'Insulin', 'SkinThickness','BloodPressure', 'Glucose', 'Pregnancies')
+y_pred = predict(classifier, newdata = test_set[cols])
+y_train_pred = predict(classifier, newdata = training_set[cols])
+
+```
+
+To find the accuracy of the model we will find the confusion matrix
+```{r}
+cm1<-confusionMatrix(y_pred, test_set$Outcome)
+cm1
+cm2<-confusionMatrix(y_train_pred, training_set$Outcome)
+cm2
+```
+
+
+Accruacy for the testing set -> 74.48%
+Accuaracy for the training set -> 78.65% 
+
+Radial kernel 
+```{r}
+library(e1071)
+classifier = svm(formula = Outcome ~ .,
+                 data = training_set,
+                 type = 'C-classification',
+                 kernel = 'radial')
+summary(classifier)
+```
+
+The next line runs the classifier on the training set and test set so that the predictions can be made. 
+
+```{r}
+library(caret)
+cols<-c('Age', 'DiabetesPedigreeFunction','BMI', 'Insulin', 'SkinThickness','BloodPressure', 'Glucose', 'Pregnancies')
+y_pred = predict(classifier, newdata = test_set[cols])
+y_train_pred = predict(classifier, newdata = training_set[cols])
+
+```
+
+To find the accuracy of the model we will find the confusion matrix
+```{r}
+cm1<-confusionMatrix(y_pred, test_set$Outcome)
+cm1
+cm2<-confusionMatrix(y_train_pred, training_set$Outcome)
+cm2
+```
+Testing set accuracy -> 75% 
+Training set accuracy -> 81.6%
+
+Gaussian kernel 
+
