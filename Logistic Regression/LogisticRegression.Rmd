@@ -1,0 +1,141 @@
+---
+title: "Logistic regression"
+author: "Siddharth.S.Chandran (18BCE1003)"
+date: "01/04/2021"
+output: html_document
+---
+
+1. Loading the dataset 
+```{r}
+library(ISLR)
+data(Smarket)
+names(Smarket)
+head(Smarket)
+summary(Smarket)
+```
+
+
+Data visualization 
+```{r}
+
+boxplot(Smarket)
+```
+
+We can see that the range of all lags and today are the same 
+```{r}
+library(Amelia)
+library(mlbench)
+missmap(Smarket, col = c("blue", "red"), legend = FALSE)
+```
+
+No missing data is there in the dataset
+
+Finding the correlation plot
+ 
+```{r}
+library(corrplot)
+correlations <- cor(Smarket[,1:8])
+corrplot(correlations, method="circle")
+```
+
+```{r}
+plot(Smarket)
+pairs(Smarket, col = Smarket$Direction)
+```
+
+From the correlation matrix we can infer that there is not much correlation going on in the dataset. 
+  
+Finding the different effects of direction on each input variable 
+```{r}
+library(caret)
+x <- Smarket[,1:8]
+y <- Smarket[,9]
+scales <- list(x=list(relation="free"), y=list(relation="free"))
+featurePlot(x=x, y=y, plot="density", scales=scales)
+```
+
+You can see that the Direction values overlap for all of these variables, meaning that it's hard to predict Up or Down based on just one or two variables.
+
+Building logistic regression model 
+```{r}
+glm.fit <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Smarket, family = binomial)
+summary(glm.fit)
+```
+
+As you can see, summary() returns the estimate, standard errors, z-score, and p-values on each of the coefficients. Look like none of the coefficients are significant here. It also gives you the null deviance (the deviance just for the mean) and the residual deviance (the deviance for the model with all the predictors). There's a very small difference between the 2, along with 6 degrees of freedom.
+
+You assign the result of predict() of glm.fit() to glm.probs, with type equals to response. This will make predictions on the training data that you use to fit the model and give me a vector of fitted probabilities.
+
+You look at the first 5 probabilities and they are very close to 50%:
+```{r}
+glm.probs <- predict(glm.fit,type = "response")
+glm.probs[1:5] ##50% above for up , less thasn 50% for down 
+```
+
+Now I am going to make a prediction of whether the market will be up or down based on the lags and other predictors. In particular, I'll turn the probabilities into classifications by thresholding at 0.5. In order to do so, I use an ifelse() command.
+
+```{r}
+glm.pred <- ifelse(glm.probs > 0.5, "Up", "Down")
+attach(Smarket)
+table(glm.pred,Direction)
+```
+
+From the table, instances on the diagonals are where you get the correct classification, and off the diagonals are where you make mistake. Looks like you made a lot of mistakes. The mean gives a proportion of 0.52.
+
+Creating Training and Test Samples
+How can you do better? Dividing the data up into a training set and a test set is a good strategy.
+
+```{r}
+train = Year<2005
+glm.fit <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume,
+               data = Smarket,
+               family = binomial,
+               subset = train)
+
+glm.probs <- predict(glm.fit,
+                    newdata = Smarket[!train,],
+                    type = "response")
+
+glm.pred <- ifelse(glm.probs > 0.5, "Up", "Down")
+```
+Let's look at this code chunk in detail:
+
+train is equal to the year less than 2005. For all the year less than 2005, you'll get a true; otherwise, I'll get a false.
+You then refit the model with glm.fit(), except that the subset is equal to 'train', which means that it fits to just the data in year less than 2005.
+You then use the predict() function again for glm.probs to predict on the remaining data in year greater or equal to 2005. For the new data, You give it Smarket, indexed by !train (!train is true if the year is greater or equal to 2005). You set type to "response" to predict the probabilities.
+Finally, you use the ifelse() function again for glm.pred to make Up and Down variable.
+You now make a new variable to store a new subset for the test data and call it Direction.2005. The response variable is still Direction. You make a table and compute the mean on this new test set:
+
+```{r}
+Direction.2005 = Smarket$Direction[!train]
+table(glm.pred, Direction.2005)
+mean(glm.pred == Direction.2005)
+```
+
+Solving Overfitting
+Well, you might have overfitted the data. In order to fix this, you're going to fit a smaller model and use Lag1, Lag2, Lag3 as the predictors, thereby leaving out all other variables. The rest of the code is the same.
+```{r}
+# Fit a smaller model
+glm.fit = glm(Direction ~ Lag1 + Lag2 + Lag3, data = Smarket, family = binomial, subset = train)
+glm.probs = predict(glm.fit, newdata = Smarket[!train,], type = "response")
+glm.pred = ifelse(glm.probs > 0.5, "Up", "Down")
+table(glm.pred, Direction.2005)
+
+##         Direction.2005
+## glm.pred Down  Up
+##     Down   39  31
+##     Up     72 110
+
+mean(glm.pred == Direction.2005)
+
+## [1] 0.5912698
+```
+
+Well, you got a classification rate of 59%, not too bad. Using the smaller model appears to perform better.
+
+Lastly, you will do a summary() of glm.fit to see if there are any signficant changes.
+```{r}
+summary(glm.fit)
+```
+
+Nothing became significant, at least the P-values are better, indicating an increase in prediction of performance.
