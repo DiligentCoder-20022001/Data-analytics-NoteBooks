@@ -1,0 +1,272 @@
+---
+title: "Lab assesment - 18BCE1003"
+author: "Siddharth.S.Chandran (18BCE1003)"
+date: "05/04/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+1. Reading the dataset 
+```{r}
+library(readxl)
+data<-read_excel("C:/Users/Siddharth.S.Chandran/Desktop/Lab-Data-RegressionR5.xlsx")
+str(data)
+```
+
+Visualizing the dataset 
+
+a. Scatter plot between P1and the r5
+```{r}
+plot(data$P1, data$R5)
+```
+
+From this plot we can infer that there is no relation between the variables P1 and R5
+
+```{r}
+barplot(table(data$P4))
+```
+P4 is a factor variable with only 2 classes and the highest class is 0.000435
+
+
+```{r}
+barplot(table(data$P10))
+```
+
+A bar chart is drawn for the frequency of each value in P10 
+
+
+```{r}
+barplot(table(data$P1, data$P7))
+```
+
+A bar chart is drawn between values of P1 and P7
+
+2. Performing exploratory data analysis 
+```{r}
+str(data)
+head(data)
+```
+
+```{r}
+library(ggplot2)
+
+```
+
+
+
+```{r}
+pie(table(data$P2))
+```
+
+3. Performing data cleaning and removing the NA values
+```{r}
+sum(is.na(data))
+```
+
+There are no empty values so we proceed to correlation analysis
+
+4. Performing correlation analysis 
+
+Selecting relevant columns 
+```{r}
+str(data)
+```
+
+```{r}
+library(plyr)
+library(readr)
+library(dplyr)
+library(caret)
+library(ggplot2)
+```
+
+
+```{r}
+library(Hmisc)
+res2<-rcorr(as.matrix(data))
+res2
+```
+Strong correlation between R5 and the variables P6, P7, P8, P15 
+
+These columns are hence taken into consideration for regression
+Splitting the dataset into training and testing 
+```{r}
+dat<-data
+set.seed(100) 
+
+index = sample(1:nrow(dat), 0.8*nrow(dat)) 
+
+train = dat[index,] # Create the training data 
+test = dat[-index,] # Create the test data
+
+dim(train)
+dim(test)
+
+```
+
+
+Scaling the numeric features 
+```{r}
+cols<-c("P6", "P7", "P8", "P15", "R5")
+pre_proc_val <- preProcess(train[,cols], method = c("center", "scale"))
+
+train[,cols] = predict(pre_proc_val, train[,cols])
+test[,cols] = predict(pre_proc_val, test[,cols])
+
+summary(train)
+```
+
+Applying linear regression between loan amount and lender count 
+```{r}
+lr = lm(R5 ~ P6+P7+P8+P15, data = train)
+summary(lr)
+```
+
+Evaluating the model 
+```{r}
+plot(lr)
+```
+
+```{r}
+eval_metrics = function(model, df, predictions, target){
+    resids = df[,target] - predictions
+    resids2 = resids**2
+    N = length(predictions)
+    r2 = as.character(round(summary(model)$r.squared, 2))
+    adj_r2 = as.character(round(summary(model)$adj.r.squared, 2))
+    print(adj_r2) #Adjusted R-squared
+    print(as.character(round(sqrt(sum(resids2)/N), 2))) #RMSE
+}
+
+# Step 2 - predicting and evaluating the model on train data
+predictions = predict(lr, newdata = train)
+eval_metrics(lr, train, predictions, target = 'R5')
+
+# Step 3 - predicting and evaluating the model on test data
+predictions = predict(lr, newdata = test)
+eval_metrics(lr, test, predictions, target = 'R5')
+d<-predictions - test[,c('R5')]
+mse = mean((d[,c('R5')])^2)
+mse
+mae = mean(abs(d[,c('R5')]))
+mae
+```
+
+RMSE for training -> -0.03 
+adj R squared for training -> 0.97 
+
+RMSE for testing -> -0.03
+adj R squared for testing -> 0.89 
+MSE -> 0.79 
+MAE -> 0.76
+
+Performign reguliarization 
+```{r}
+dummies <- dummyVars(R5 ~ ., data = dat[,cols])
+
+train_dummies = predict(dummies, newdata = train[,cols])
+
+test_dummies = predict(dummies, newdata = test[,cols])
+
+print(dim(train_dummies))
+print(dim(test_dummies))
+```
+Applying ridge regression 
+
+```{r}
+library(glmnet)
+
+x = as.matrix(train_dummies)
+y_train = train$R5
+
+x_test = as.matrix(test_dummies)
+y_test = test$R5
+
+lambdas <- 10^seq(2, -3, by = -.1)
+ridge_reg = glmnet(x, y_train, nlambda = 25, alpha = 0, family = 'gaussian', lambda = lambdas)
+
+summary(ridge_reg)
+```
+
+
+Finding the optimal lambda 
+```{r}
+cv_ridge <- cv.glmnet(x, y_train, alpha = 0, lambda = lambdas)
+optimal_lambda <- cv_ridge$lambda.min
+optimal_lambda
+```
+
+Evaluation metrics
+```{r}
+# Compute R^2 from true and predicted values
+eval_results <- function(true, predicted, df) {
+  SSE <- sum((predicted - true)^2)
+  SST <- sum((true - mean(true))^2)
+  R_square <- 1 - SSE / SST
+  RMSE = sqrt(SSE/nrow(df))
+
+  
+  # Model performance metrics
+data.frame(
+  RMSE = RMSE,
+  Rsquare = R_square
+)
+  
+}
+
+# Prediction and evaluation on train data
+predictions_train <- predict(ridge_reg, s = optimal_lambda, newx = x)
+eval_results(y_train, predictions_train, train)
+
+# Prediction and evaluation on test data
+predictions_test <- predict(ridge_reg, s = optimal_lambda, newx = x_test)
+eval_results(y_test, predictions_test, test)
+d<-predictions - test[,c('R5')]
+mse = mean((d[,c('R5')])^2)
+mse
+mae = mean(abs(d[,c('R5')]))
+mae
+```
+
+RMSE -> 0.94 
+R squared -> 0.0029 
+MSE -> 0.79 
+MAE -> 0.76
+
+Performing Lasso regression 
+
+```{r}
+lambdas <- 10^seq(2, -3, by = -.1)
+
+# Setting alpha = 1 implements lasso regression
+lasso_reg <- cv.glmnet(x, y_train, alpha = 1, lambda = lambdas, standardize = TRUE, nfolds = 5)
+
+# Best 
+lambda_best <- lasso_reg$lambda.min 
+lambda_best
+```
+Evaluation metrics
+```{r}
+lasso_model <- glmnet(x, y_train, alpha = 1, lambda = lambda_best, standardize = TRUE)
+
+predictions_train <- predict(lasso_model, s = lambda_best, newx = x)
+eval_results(y_train, predictions_train, train)
+
+predictions_test <- predict(lasso_model, s = lambda_best, newx = x_test)
+eval_results(y_test, predictions_test, test)
+d<-predictions - test[,c('R5')]
+mse = mean((d[,c('R5')])^2)
+mse
+mae = mean(abs(d[,c('R5')]))
+mae
+```
+
+RMSE -> 0.95 
+R squared -> -0.0004 
+MSE -> 0.79 
+MAE -> 0.76 
+
+
+Result
+Based on all the RMSE, R squared, MSE and MAE values we got we can see that lineaar regression has the highest R squared value and lowest RMSE value making it a good model for R5. 
