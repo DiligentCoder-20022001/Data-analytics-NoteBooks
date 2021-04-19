@@ -1,0 +1,134 @@
+---
+title: "Decision Tree visualization"
+author: "Siddharth.S.Chandran (18BCE1003)"
+date: "26/03/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+1. Load the dataset boston.csv  
+```{r}
+mydata= read.csv("C:/Users/Siddharth.S.Chandran/Downloads/Boston.csv")
+names(mydata)
+str(mydata)
+```
+Splitting into training and testing dataset
+```{r}
+dt = sort(sample(nrow(mydata), nrow(mydata)*.7))
+train<-mydata[dt,]
+val<-mydata[-dt,] 
+nrow(train)
+```
+354 records used for training 
+
+Loading the libraries for decision tree visualization
+
+```{r}
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+```
+
+```{r}
+mytree <- rpart(chas~., data = train, method="class", control = rpart.control(minsplit = 20, minbucket = 10, maxdepth = 10, usesurrogate = 2, xval =10 ))
+mytree
+
+```
+
+Plot the trees 
+```{r}
+plot(mytree)
+text(mytree)
+```
+
+```{r}
+par(xpd = NA, mar = rep(0.7, 4)) 
+plot(mytree, compress = TRUE)
+text(mytree, cex = 0.7, use.n = TRUE, fancy = FALSE, all = TRUE)
+```
+
+Here the decision tree is constructed wrt tax attribute
+
+Visualizing the tree using prp function 
+```{r}
+library(rpart.plot)#view1
+prp(mytree, faclen = 0,box.palette = "Reds", cex = 0.8, extra = 1)
+```
+
+Total count at each node 
+```{r}
+total_count <- function(x, labs, digits, varlen){paste(labs, "\n\nn =", x$frame$n)}
+prp(mytree, faclen = 0, cex = 0.8, node.fun=total_count)
+```
+
+```{r}
+printcp(mytree)
+```
+
+Pruning the decision tree and visualizing it 
+```{r}
+best_cp <- mytree$cptable[which.min(mytree$cptable[,"xerror"]),"CP"]
+prunedTree <- prune(mytree, cp = best_cp)
+prp(prunedTree, box.palette = "Blues",faclen = 0, cex = 0.8, extra = 1)
+```
+
+ Printing the confusion matrix
+```{r}
+confusionMatrix <- table(train$chas, predict(prunedTree,type="class"))
+rownames(confusionMatrix) <- paste("Actual", rownames(confusionMatrix), sep = ":")
+colnames(confusionMatrix) <- paste("Pred", colnames(confusionMatrix), sep = ":")
+print(confusionMatrix)
+```
+ Plotting ROC curve 
+```{r}
+library(ROCR)
+val1 = predict(prunedTree, val, type = "prob")
+predictedValue <-prediction(val1[,2],val$chas)
+perfVal <- performance(predictedValue,"auc")
+perfVal
+perfVal <- performance(predictedValue, "tpr", "fpr")#Plot the ROC 
+plot(perfVal, col = "green", lwd = 1.5)
+```
+ 
+ Calculating the KS statisitics 
+```{r}
+ks1Tree <- max(attr(perfVal, "y.values")[[1]] - (attr(perfVal, "x.values")[[1]]))
+ks1Tree
+```
+ 
+ Visualizing the tree using random forest algorithm
+```{r}
+library(randomForest)
+rf50 <- randomForest(chas ~., data = train, ntree=200, importance=T, proximity=T)
+plot(rf50, main="")
+```
+ 
+```{r}
+rf50
+```
+ 
+```{r}
+Test50_rf_pred <- predict(rf50, val, type="class")
+table(Test50_rf_pred, val$chas)
+```
+ 
+```{r}
+varImpPlot(rf50,  main="", cex=0.8)
+```
+ 
+ Visualizing using CART model 
+```{r}
+latlontree = rpart(mydata$chas~., data= mydata)# Plot the tree using prp command defined in rpart.plot package
+prp(latlontree)
+```
+
+```{r}
+latlontree = rpart(mydata$chas~., data= mydata,minbucket=50)
+plot(latlontree)
+text(latlontree)
+```
+ 
+ 
