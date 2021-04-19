@@ -1,0 +1,64 @@
+---
+title: "K-means & k-medioid"
+author: "Siddharth.S.Chandran (18BCE1003)"
+date: "12/04/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+1. Loading the required packages and the "USArrests" dataset 
+
+```{r}
+library(factoextra)
+data("USArrests")
+df <- scale(USArrests) # Scaling the data
+
+# View the firt 3 rows of the data
+head(df, n = 3)
+```
+
+2. Computing k-means clustering 
+
+Performing kmeans with k = 5 
+```{r}
+set.seed(123)
+km.res <- kmeans(df, 5, nstart = 25)
+##Printing the results 
+print(km.res)
+```
+
+Computing the means of the variables using clusters 
+
+```{r}
+aggregate(USArrests, by=list(cluster=km.res$cluster), mean)
+```
+Accessing the results of kmeans() function 
+
+```{r}
+head(km.res$cluster, 5)
+```
+
+Finding the cluster size 
+```{r}
+km.res$size
+```
+
+Finding cluster means
+```{r}
+km.res$centers
+```
+
+Visualizing kmeans cluster
+```{r}
+fviz_cluster(km.res, data = df)
+```
+Performing k medioid algorithm 
+
+```{r}
+library(cluster)
+kmed<-pam(df,k = 5)
+kmed
+fviz_cluster(kmed, data = df)
+```
+
